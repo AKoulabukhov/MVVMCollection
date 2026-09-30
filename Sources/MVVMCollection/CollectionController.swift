@@ -1,6 +1,7 @@
 import UIKit
 
-@MainActor public protocol CollectionControllerProtocol: AnyObject {
+@MainActor
+public protocol CollectionControllerProtocol: AnyObject {
     var scrollViewDelegate: UIScrollViewDelegate? { get set }
     var flowLayoutDelegate: UICollectionViewDelegateFlowLayout? { get set }
     var supplementaryViewProvider: SupplementaryViewProvider? { get set }
@@ -28,21 +29,24 @@ extension CollectionControllerProtocol {
     }
 }
 
+@MainActor
 public final class CollectionController: CollectionControllerProtocol {
     private let registry: CollectionComponentRegistry
-    private let viewModelStorage = ViewModelStorage()
+    private lazy var runtime = CollectionComponentRuntime(
+        itemReloader: makeItemReloader()
+    )
     private lazy var delegate = makeDelegate()
 
     private weak var collectionView: UICollectionView?
     private var dataSource: DataSource?
     private var data: CollectionControllerData?
+    private var pendingUpdateCompletions = [() -> Void]()
+    private var registeredCellCount = 0
 
     public init(
         registry: CollectionComponentRegistry
     ) {
         self.registry = registry
-        registry.viewModelStorage = viewModelStorage
-        registry.itemReloader = makeItemReloader()
     }
 
     // MARK: - CollectionControllerProtocol
@@ -90,6 +94,7 @@ public final class CollectionController: CollectionControllerProtocol {
         }
 
         self.collectionView = collectionView
+        registeredCellCount = 0
         registerCells(in: collectionView)
         updateDataSource(with: collectionView)
         collectionView.delegate = delegate
@@ -109,12 +114,19 @@ public final class CollectionController: CollectionControllerProtocol {
         completion: (() -> Void)?
     ) {
         data = newData
-        dataSource?.apply(
-            newData.snapshot,
-            animatingDifferences: animated,
-            completion: completion
-        )
-        viewModelStorage.removeUnusedViewModels(for: newData)
+        if let collectionView = collectionView {
+            registerCells(in: collectionView)
+        }
+        if let dataSource = dataSource {
+            dataSource.apply(
+                newData.snapshot,
+                animatingDifferences: animated,
+                completion: completion
+            )
+        } else if let completion = completion {
+            pendingUpdateCompletions.append(completion)
+        }
+        runtime.viewModelStorage.removeUnusedViewModels(for: newData)
     }
 
     private func updateDataSource(
@@ -131,13 +143,21 @@ public final class CollectionController: CollectionControllerProtocol {
 
     private func applyDataSnapshot() {
         guard let dataSource = dataSource, let data = data else { return }
-        dataSource.apply(data.snapshot)
+        let completions = pendingUpdateCompletions
+        pendingUpdateCompletions.removeAll()
+        dataSource.apply(
+            data.snapshot,
+            completion: {
+                completions.forEach { $0() }
+            }
+        )
     }
 
     private func registerCells(in collectionView: UICollectionView) {
-        registry.cellRegistrators.forEach { registrationBlock in
+        registry.cellRegistrators.dropFirst(registeredCellCount).forEach { registrationBlock in
             registrationBlock(collectionView)
         }
+        registeredCellCount = registry.cellRegistrators.count
     }
 
     private func makeDelegate() -> CollectionViewDelegate {
@@ -146,7 +166,7 @@ public final class CollectionController: CollectionControllerProtocol {
                 self?.performWithItem(
                     at: indexPath,
                     block: { strongSelf, item in
-                        strongSelf.viewModelStorage.getViewModel(
+                        strongSelf.runtime.viewModelStorage.getViewModel(
                             for: item
                         )
                     }
@@ -154,11 +174,12 @@ public final class CollectionController: CollectionControllerProtocol {
             },
             sizeProvider: { [weak self] collectionView, layout, indexPath in
                 self?.performWithItem(
-                    at: indexPath,
-                    block: { strongSelf, item in
-                        strongSelf.registry.cellSizeProviders[TypeIdentifier(item)]?(
-                            item,
-                            collectionView,
+                        at: indexPath,
+                        block: { strongSelf, item in
+                            strongSelf.registry.cellSizeProviders[TypeIdentifier(item)]?(
+                                strongSelf.runtime,
+                                item,
+                                collectionView,
                             layout,
                             indexPath
                         )
@@ -170,9 +191,9 @@ public final class CollectionController: CollectionControllerProtocol {
 
     private func performWithItem<Result>(
         at indexPath: IndexPath,
-        block: (CollectionController, AnySendableHashable) -> Result?
+        block: (CollectionController, AnyHashable) -> Result?
     ) -> Result? {
-        guard let item = self.dataSource?.itemIdentifier(for: indexPath) else { return nil }
+        guard let item = self.dataSource?.itemIdentifier(for: indexPath)?.base else { return nil }
         return block(self, item)
     }
 
@@ -180,10 +201,12 @@ public final class CollectionController: CollectionControllerProtocol {
         { [weak self] item, animated in
             guard let dataSource = self?.dataSource else { return }
             var snapshot = dataSource.snapshot()
-            if #available(iOS 15.0, *) {
-                snapshot.reconfigureItems([AnySendableHashable(item)])
+            let identifier = CollectionIdentifier(item)
+            guard snapshot.indexOfItem(identifier) != nil else { return }
+            if #available(iOS 15.0, tvOS 15.0, macCatalyst 15.0, *) {
+                snapshot.reconfigureItems([identifier])
             } else {
-                snapshot.reloadItems([AnySendableHashable(item)])
+                snapshot.reloadItems([identifier])
             }
             dataSource.apply(
                 snapshot,
@@ -193,7 +216,8 @@ public final class CollectionController: CollectionControllerProtocol {
     }
 
     private func makeCellProvider() -> DataSource.CellProvider {
-        { [registry] collectionView, indexPath, item in
+        { [registry, runtime] collectionView, indexPath, identifier in
+            let item = identifier.base
             let typeIdentifier = TypeIdentifier(item)
             guard let cellProvider = registry.cellProviders[typeIdentifier] else {
                 let errorMessage = "No descriptor found for \(typeIdentifier.stringValue)"
@@ -204,6 +228,7 @@ public final class CollectionController: CollectionControllerProtocol {
                 )
             }
             return cellProvider(
+                runtime,
                 item,
                 collectionView,
                 indexPath

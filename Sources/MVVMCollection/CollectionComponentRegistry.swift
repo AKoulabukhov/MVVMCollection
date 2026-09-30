@@ -1,12 +1,10 @@
 import UIKit
 
-@MainActor public final class CollectionComponentRegistry {
+@MainActor
+public final class CollectionComponentRegistry {
     var cellRegistrators = [CellRegistrator]()
-    var cellProviders = [TypeIdentifier: CellProvider]()
-    var cellSizeProviders = [TypeIdentifier: CellSizeProvider]()
-
-    var viewModelStorage: ViewModelStorageProtocol?
-    var itemReloader: ItemReloader?
+    var cellProviders = [TypeIdentifier: ContextualCellProvider]()
+    var cellSizeProviders = [TypeIdentifier: ContextualCellSizeProvider]()
 
     public init() { }
 
@@ -23,30 +21,23 @@ import UIKit
             )
         })
 
-        let obtainViewModel: (AnySendableHashable) -> ViewModel = { [weak self] item in
+        let obtainViewModel: (CollectionComponentRuntime, AnyHashable) -> ViewModel = { runtime, item in
             /// UICollectionViewDiffableDataSource forces type erasure for multiple items type support
-            let castedItem = item.wrappedValue.base as! Item
+            let castedItem = item.base as! Item
 
-            guard let viewModelStorage = self?.viewModelStorage else {
-                assertionFailure("viewModelStorage must be set in advance")
-                return descriptor.makeViewModel(castedItem)
-            }
+            let viewModelStorage = runtime.viewModelStorage
             if let viewModel = viewModelStorage.getViewModel(for: item) as? ViewModel {
                 return viewModel
             } else {
                 let viewModel = descriptor.makeViewModel(castedItem)
                 if let reloadableViewModel = viewModel as? CollectionComponentViewModelReloadableProtocol {
                     reloadableViewModel.storeReloadToken(
-                        BlockReloadToken { animated in
-                            guard let self = self else {
+                        BlockReloadToken { [weak runtime] animated in
+                            guard let runtime = runtime else {
                                 print("[MVVMCollection] WARNING: Attempted to reload \(item) while CollectionController already deallocated")
                                 return
                             }
-                            guard let itemReloader = self.itemReloader else {
-                                assertionFailure("itemReloader must be set in advance")
-                                return
-                            }
-                            itemReloader(item, animated)
+                            runtime.itemReloader(item, animated)
                         }
                     )
                 }
@@ -58,7 +49,7 @@ import UIKit
             }
         }
 
-        cellProviders[typeIdentifier] = { item, collectionView, indexPath in
+        cellProviders[typeIdentifier] = { runtime, item, collectionView, indexPath in
             let cell = collectionView.dequeueReusableCell(
                 withReuseIdentifier: reuseIdentifier,
                 for: indexPath
@@ -66,7 +57,7 @@ import UIKit
             cell.viewFactoryBlock = descriptor.makeView
 
             descriptor.assignViewModel(
-                obtainViewModel(item),
+                obtainViewModel(runtime, item),
                 cell.view
             )
 
@@ -74,9 +65,9 @@ import UIKit
         }
 
         if let calculateSize = descriptor.calculateSize {
-            cellSizeProviders[typeIdentifier] = { item, collectionView, layout, indexPath in
+            cellSizeProviders[typeIdentifier] = { runtime, item, collectionView, layout, indexPath in
                 calculateSize(
-                    obtainViewModel(item),
+                    obtainViewModel(runtime, item),
                     collectionView,
                     layout,
                     indexPath

@@ -1,6 +1,7 @@
 import UIKit
 
-@MainActor public struct CollectionComponentDescriptor<Item: Hashable, ViewModel, View: UIView> {
+@MainActor
+public struct CollectionComponentDescriptor<Item: Hashable, ViewModel, View: UIView> {
     public typealias ViewFactoryBlock = () -> View
     public typealias ViewModelFactoryBlock = (Item) -> ViewModel
     public typealias ViewModelAssignBlock = (ViewModel, View) -> Void
@@ -16,7 +17,7 @@ import UIKit
     let assignViewModel: ViewModelAssignBlock
     let calculateSize: ViewSizeCalculatorBlock?
 
-    private init(
+    public init(
         makeView: @escaping ViewFactoryBlock,
         makeViewModel: @escaping ViewModelFactoryBlock,
         assignViewModel: @escaping ViewModelAssignBlock,

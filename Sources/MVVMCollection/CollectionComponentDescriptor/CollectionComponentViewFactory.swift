@@ -1,10 +1,12 @@
 import UIKit
 
-@MainActor public protocol CollectionComponentViewFactoryProtocol {
+@MainActor
+public protocol CollectionComponentViewFactoryProtocol {
     associatedtype View: UIView
     func makeView() -> View
 }
 
+@MainActor
 public struct CollectionComponentInitViewFactory<View: UIView>: CollectionComponentViewFactoryProtocol {
     public init() { }
 
@@ -13,6 +15,7 @@ public struct CollectionComponentInitViewFactory<View: UIView>: CollectionCompon
     }
 }
 
+@MainActor
 public struct CollectionComponentBlockViewFactory<View: UIView>: CollectionComponentViewFactoryProtocol {
     private let makeViewBlock: () -> View
 

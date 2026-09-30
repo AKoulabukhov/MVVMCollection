@@ -1,33 +1,35 @@
 import Foundation
 
+@MainActor
 protocol ViewModelStorageProtocol: AnyObject {
     func setViewModel(
         viewModel: Any,
-        for item: AnySendableHashable
+        for item: AnyHashable
     )
     func getViewModel(
-        for item: AnySendableHashable
+        for item: AnyHashable
     ) -> Any?
     func removeUnusedViewModels(
         for data: CollectionControllerData
     )
 }
 
+@MainActor
 final class ViewModelStorage: ViewModelStorageProtocol {
 
-    private var storage = [AnySendableHashable: Any]()
+    private var storage = [CollectionIdentifier: Any]()
 
     func setViewModel(
         viewModel: Any,
-        for item: AnySendableHashable
+        for item: AnyHashable
     ) {
-        storage[item] = viewModel
+        storage[CollectionIdentifier(item)] = viewModel
     }
 
     func getViewModel(
-        for item: AnySendableHashable
+        for item: AnyHashable
     ) -> Any? {
-        storage[item]
+        storage[CollectionIdentifier(item)]
     }
 
     func removeUnusedViewModels(

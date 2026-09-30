@@ -1,8 +1,11 @@
 import UIKit
 
-public protocol CollectionConrollerDataSectionProtocol: Hashable {
+public protocol CollectionControllerDataSectionProtocol: Hashable {
     var items: [AnyHashable] { get }
 }
+
+@available(*, deprecated, renamed: "CollectionControllerDataSectionProtocol")
+public typealias CollectionConrollerDataSectionProtocol = CollectionControllerDataSectionProtocol
 
 public final class CollectionControllerData {
     public init() { }
@@ -10,23 +13,23 @@ public final class CollectionControllerData {
     var snapshot = Snapshot()
 
     public init(items: [AnyHashable]) {
-        let section = AnySendableHashable(0)
+        let section = CollectionIdentifier(AnyHashable(0))
         snapshot.appendSections([section])
         snapshot.appendItems(
-            items.map { AnySendableHashable($0) },
+            items.map(CollectionIdentifier.init),
             toSection: section
         )
     }
 
-    public init<Section: CollectionConrollerDataSectionProtocol>(
+    public init<Section: CollectionControllerDataSectionProtocol>(
         sections: [Section]
     ) {
         sections.forEach { section in
-            let anySendableSection = AnySendableHashable(section)
-            snapshot.appendSections([anySendableSection])
+            let sectionIdentifier = CollectionIdentifier(AnyHashable(section))
+            snapshot.appendSections([sectionIdentifier])
             snapshot.appendItems(
-                section.items.map { AnySendableHashable($0) },
-                toSection: anySendableSection
+                section.items.map(CollectionIdentifier.init),
+                toSection: sectionIdentifier
             )
         }
     }

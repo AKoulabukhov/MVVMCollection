@@ -1,11 +1,13 @@
 import UIKit
 
-@MainActor protocol CollectionViewDelegateProtocol: UICollectionViewDelegateFlowLayout {
+@MainActor
+protocol CollectionViewDelegateProtocol: UICollectionViewDelegateFlowLayout {
     var scrollViewDelegate: UIScrollViewDelegate? { get set }
     var flowLayoutDelegate: UICollectionViewDelegateFlowLayout? { get set }
 }
 
-@MainActor final class CollectionViewDelegate: NSObject, CollectionViewDelegateProtocol {
+@MainActor
+final class CollectionViewDelegate: NSObject, CollectionViewDelegateProtocol {
     weak var scrollViewDelegate: UIScrollViewDelegate?
     weak var flowLayoutDelegate: UICollectionViewDelegateFlowLayout?
 
@@ -315,25 +317,29 @@ import UIKit
     // MARK: - Message forwarding
 
     nonisolated override func responds(to aSelector: Selector!) -> Bool {
-        return MainActor.assumeIsolated {
-            let cls = CollectionViewDelegate.self
-            if cls.flowLayoutDelegateSelectors.contains(aSelector) {
-                if aSelector == cls.sizeSelector {
-                    return true
-                }
-                return self.flowLayoutDelegate?.responds(to: aSelector) ?? false
-            }
+        MainActor.assumeIsolated {
+            respondsOnMain(to: aSelector)
+        }
+    }
 
-            if cls.scrollViewDelegateSelectors.contains(aSelector) {
-                return self.scrollViewDelegate?.responds(to: aSelector) ?? false
-            }
-
-            if cls.selfCollectionViewDelegateSelectors.contains(aSelector) {
+    private func respondsOnMain(to aSelector: Selector!) -> Bool {
+        let cls = CollectionViewDelegate.self
+        if cls.flowLayoutDelegateSelectors.contains(aSelector) {
+            if aSelector == cls.sizeSelector {
                 return true
             }
-            
-            return super.responds(to: aSelector)
+            return self.flowLayoutDelegate?.responds(to: aSelector) ?? false
         }
+
+        if cls.scrollViewDelegateSelectors.contains(aSelector) {
+            return self.scrollViewDelegate?.responds(to: aSelector) ?? false
+        }
+
+        if cls.selfCollectionViewDelegateSelectors.contains(aSelector) {
+            return true
+        }
+
+        return super.responds(to: aSelector)
     }
 }
 
@@ -346,58 +352,18 @@ private extension UICollectionViewCell {
 
     var appearanceDelegate: CollectionComponentViewModelLifecycleProtocol? {
         get {
-            let container = objc_getAssociatedObject(
+            objc_getAssociatedObject(
                 self,
                 &UICollectionViewCell.appearanceDelegateKey
-            ) as? Container
-            return container?.object as? CollectionComponentViewModelLifecycleProtocol
+            ) as? CollectionComponentViewModelLifecycleProtocol
         }
         set {
-            let params: (object: AnyObject, policy: Container.Policy)?
-            if let newValueObject = newValue as? (AnyObject & CollectionComponentViewModelLifecycleProtocol) {
-                params = (newValueObject, .weak)
-            } else if let newValue = newValue {
-                params = (newValue as AnyObject, .strong)
-            } else {
-                params = nil
-            }
             objc_setAssociatedObject(
                 self,
                 &UICollectionViewCell.appearanceDelegateKey,
-                params.map {
-                    Container(
-                        object: $0.object,
-                        policy: $0.policy
-                    )
-                },
+                newValue,
                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC
             )
-        }
-    }
-}
-
-private final class Container {
-    enum Policy { case weak, strong }
-
-    private let policy: Policy
-    private weak var weakRefence: AnyObject?
-    private var strongReference: AnyObject?
-
-    var object: AnyObject? {
-        switch policy {
-        case .weak: return weakRefence
-        case .strong: return strongReference
-        }
-    }
-
-    init(
-        object: AnyObject,
-        policy: Policy
-    ) {
-        self.policy = policy
-        switch policy {
-        case .weak: weakRefence = object
-        case .strong: strongReference = object
         }
     }
 }
