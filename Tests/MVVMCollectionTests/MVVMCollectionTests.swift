@@ -82,6 +82,58 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertFalse(madeViewModels[0] === madeViewModels[1])
     }
 
+    func testViewModelIsReusedUntilItsItemIsRemoved() {
+        var creationCount = 0
+        weak var storedViewModel: StoredViewModel?
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor<TestItem, StoredViewModel, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { _ in
+                    creationCount += 1
+                    let viewModel = StoredViewModel()
+                    storedViewModel = viewModel
+                    return viewModel
+                },
+                assignViewModel: { _, _ in }
+            )
+        )
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        let data = CollectionControllerData(items: [TestItem(id: 1)])
+        let indexPath = IndexPath(item: 0, section: 0)
+        controller.attach(to: collectionView)
+        controller.update(with: data)
+
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+        controller.update(with: data)
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+
+        XCTAssertEqual(creationCount, 1)
+        XCTAssertNotNil(storedViewModel)
+
+        controller.update(with: CollectionControllerData(items: []))
+        XCTAssertNil(storedViewModel)
+
+        controller.update(with: data)
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+        XCTAssertEqual(creationCount, 2)
+        XCTAssertNotNil(storedViewModel)
+    }
+
     func testUpdateCompletionWaitsForAttach() {
         let controller = CollectionController(registry: CollectionComponentRegistry())
         let completion = expectation(description: "update completion")
@@ -404,6 +456,8 @@ private final class ReloadableViewModel: CollectionComponentViewModelReloadableP
 }
 
 private final class LifecycleViewModel: CollectionComponentViewModelLifecycleProtocol { }
+
+private final class StoredViewModel { }
 
 private struct SizingViewModel: CollectionComponentViewModelHashableContentProtocol {
     let contentHash: Int
