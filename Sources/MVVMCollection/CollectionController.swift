@@ -41,6 +41,7 @@ public final class CollectionController: CollectionControllerProtocol {
     private var dataSource: DataSource?
     private var data: CollectionControllerData?
     private var pendingUpdateCompletions = [() -> Void]()
+    private var registeredCellCount = 0
 
     public init(
         registry: CollectionComponentRegistry
@@ -93,6 +94,7 @@ public final class CollectionController: CollectionControllerProtocol {
         }
 
         self.collectionView = collectionView
+        registeredCellCount = 0
         registerCells(in: collectionView)
         updateDataSource(with: collectionView)
         collectionView.delegate = delegate
@@ -112,6 +114,9 @@ public final class CollectionController: CollectionControllerProtocol {
         completion: (() -> Void)?
     ) {
         data = newData
+        if let collectionView = collectionView {
+            registerCells(in: collectionView)
+        }
         if let dataSource = dataSource {
             dataSource.apply(
                 newData.snapshot,
@@ -149,9 +154,10 @@ public final class CollectionController: CollectionControllerProtocol {
     }
 
     private func registerCells(in collectionView: UICollectionView) {
-        registry.cellRegistrators.forEach { registrationBlock in
+        registry.cellRegistrators.dropFirst(registeredCellCount).forEach { registrationBlock in
             registrationBlock(collectionView)
         }
+        registeredCellCount = registry.cellRegistrators.count
     }
 
     private func makeDelegate() -> CollectionViewDelegate {

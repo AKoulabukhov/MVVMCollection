@@ -233,6 +233,32 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertEqual(cell.view.text, "Item 7")
     }
 
+    func testDescriptorAddedAfterAttachIsRegisteredOnUpdate() throws {
+        let registry = CollectionComponentRegistry()
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        controller.attach(to: collectionView)
+
+        registry.append(
+            CollectionComponentDescriptor<TestItem, TestItem, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { $0 },
+                assignViewModel: { item, label in
+                    label.text = "Late item \(item.id)"
+                }
+            )
+        )
+        controller.update(with: CollectionControllerData(items: [TestItem(id: 9)]))
+
+        let cell = try XCTUnwrap(
+            collectionView.dataSource?.collectionView(
+                collectionView,
+                cellForItemAt: IndexPath(item: 0, section: 0)
+            ) as? GenericCollectionViewCell<UILabel>
+        )
+        XCTAssertEqual(cell.view.text, "Late item 9")
+    }
+
     private func makeCollectionView() -> UICollectionView {
         UICollectionView(
             frame: CGRect(x: 0, y: 0, width: 320, height: 480),
