@@ -495,6 +495,55 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertEqual(assignmentCounter.value, 2)
     }
 
+    func testSizingAndCellBindingShareViewModel() throws {
+        var creationCount = 0
+        var sizingViewModel: StoredViewModel?
+        var assignedViewModel: StoredViewModel?
+        let expectedSize = CGSize(width: 37, height: 41)
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor<TestItem, StoredViewModel, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { _ in
+                    creationCount += 1
+                    return StoredViewModel()
+                },
+                assignViewModel: { viewModel, _ in
+                    assignedViewModel = viewModel
+                },
+                calculateSize: { viewModel, _, _, _ in
+                    sizingViewModel = viewModel
+                    return expectedSize
+                }
+            )
+        )
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
+        let indexPath = IndexPath(item: 0, section: 0)
+        controller.attach(to: collectionView)
+        controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
+
+        let delegate = try XCTUnwrap(
+            collectionView.delegate as? UICollectionViewDelegateFlowLayout
+        )
+        let size = try XCTUnwrap(
+            delegate.collectionView?(
+                collectionView,
+                layout: layout,
+                sizeForItemAt: indexPath
+            )
+        )
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+
+        XCTAssertEqual(size, expectedSize)
+        XCTAssertEqual(creationCount, 1)
+        XCTAssertTrue(sizingViewModel === assignedViewModel)
+    }
+
     func testDescriptorCanBeConfiguredWithClosures() throws {
         let descriptor = CollectionComponentDescriptor<TestItem, String, UILabel>(
             makeView: UILabel.init,
