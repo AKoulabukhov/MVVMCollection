@@ -325,6 +325,41 @@ final class MVVMCollectionTests: XCTestCase {
         )
     }
 
+    func testExternalDelegatesAreAdvertisedAndForwarded() throws {
+        let controller = CollectionController(registry: CollectionComponentRegistry())
+        let collectionView = makeCollectionView()
+        controller.attach(to: collectionView)
+        let delegate = try XCTUnwrap(collectionView.delegate as? CollectionViewDelegate)
+        let scrollSelector = #selector(
+            UIScrollViewDelegate.scrollViewDidScroll(_:)
+        )
+        let sizeSelector = #selector(
+            UICollectionViewDelegateFlowLayout.collectionView(_:layout:sizeForItemAt:)
+        )
+
+        XCTAssertFalse(delegate.responds(to: scrollSelector))
+        XCTAssertTrue(delegate.responds(to: sizeSelector))
+
+        let scrollViewDelegate = ScrollViewDelegateSpy()
+        let flowLayoutDelegate = FlowLayoutDelegateSpy(
+            size: CGSize(width: 23, height: 29)
+        )
+        controller.scrollViewDelegate = scrollViewDelegate
+        controller.flowLayoutDelegate = flowLayoutDelegate
+
+        XCTAssertTrue(delegate.responds(to: scrollSelector))
+        delegate.scrollViewDidScroll(collectionView)
+        XCTAssertEqual(scrollViewDelegate.didScrollCount, 1)
+
+        let size = delegate.collectionView(
+            collectionView,
+            layout: collectionView.collectionViewLayout,
+            sizeForItemAt: IndexPath(item: 0, section: 0)
+        )
+        XCTAssertEqual(size, flowLayoutDelegate.size)
+        XCTAssertEqual(flowLayoutDelegate.sizeRequestCount, 1)
+    }
+
     func testTypeErasedIdentifiersKeepDynamicTypeIdentity() {
         let integer = CollectionIdentifier(AnyHashable(Int(1)))
         let byte = CollectionIdentifier(AnyHashable(UInt8(1)))
@@ -683,6 +718,32 @@ private final class RecordingLifecycleViewModel: CollectionComponentViewModelLif
 }
 
 private final class StoredViewModel { }
+
+private final class ScrollViewDelegateSpy: NSObject, UIScrollViewDelegate {
+    private(set) var didScrollCount = 0
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        didScrollCount += 1
+    }
+}
+
+private final class FlowLayoutDelegateSpy: NSObject, UICollectionViewDelegateFlowLayout {
+    let size: CGSize
+    private(set) var sizeRequestCount = 0
+
+    init(size: CGSize) {
+        self.size = size
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        layout collectionViewLayout: UICollectionViewLayout,
+        sizeForItemAt indexPath: IndexPath
+    ) -> CGSize {
+        sizeRequestCount += 1
+        return size
+    }
+}
 
 private struct SizingViewModel: CollectionComponentViewModelHashableContentProtocol {
     let contentHash: Int
