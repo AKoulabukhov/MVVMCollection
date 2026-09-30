@@ -17,7 +17,7 @@ public struct CollectionComponentDescriptor<Item: Hashable, ViewModel, View: UIV
     let assignViewModel: ViewModelAssignBlock
     let calculateSize: ViewSizeCalculatorBlock?
 
-    private init(
+    public init(
         makeView: @escaping ViewFactoryBlock,
         makeViewModel: @escaping ViewModelFactoryBlock,
         assignViewModel: @escaping ViewModelAssignBlock,
