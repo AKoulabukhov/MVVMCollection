@@ -251,6 +251,80 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertNil(weakViewModel)
     }
 
+    func testLifecycleViewModelReceivesInteractionEvents() throws {
+        var viewModel: RecordingLifecycleViewModel?
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor<TestItem, RecordingLifecycleViewModel, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { _ in
+                    let model = RecordingLifecycleViewModel()
+                    viewModel = model
+                    return model
+                },
+                assignViewModel: { _, _ in }
+            )
+        )
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        let indexPath = IndexPath(item: 0, section: 0)
+        controller.attach(to: collectionView)
+        controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
+        _ = collectionView.dataSource?.collectionView(
+            collectionView,
+            cellForItemAt: indexPath
+        )
+        let delegate = try XCTUnwrap(collectionView.delegate)
+
+        XCTAssertFalse(
+            delegate.collectionView?(
+                collectionView,
+                shouldHighlightItemAt: indexPath
+            ) ?? true
+        )
+        delegate.collectionView?(
+            collectionView,
+            didHighlightItemAt: indexPath
+        )
+        delegate.collectionView?(
+            collectionView,
+            didUnhighlightItemAt: indexPath
+        )
+        XCTAssertFalse(
+            delegate.collectionView?(
+                collectionView,
+                shouldSelectItemAt: indexPath
+            ) ?? true
+        )
+        delegate.collectionView?(
+            collectionView,
+            didSelectItemAt: indexPath
+        )
+        XCTAssertFalse(
+            delegate.collectionView?(
+                collectionView,
+                shouldDeselectItemAt: indexPath
+            ) ?? true
+        )
+        delegate.collectionView?(
+            collectionView,
+            didDeselectItemAt: indexPath
+        )
+
+        XCTAssertEqual(
+            viewModel?.events,
+            [
+                "shouldHighlight",
+                "didHighlight",
+                "didUnhighlight",
+                "shouldSelect",
+                "didSelect",
+                "shouldDeselect",
+                "didDeselect",
+            ]
+        )
+    }
+
     func testTypeErasedIdentifiersKeepDynamicTypeIdentity() {
         let integer = CollectionIdentifier(AnyHashable(Int(1)))
         let byte = CollectionIdentifier(AnyHashable(UInt8(1)))
@@ -523,6 +597,41 @@ private final class ReloadableViewModel: CollectionComponentViewModelReloadableP
 }
 
 private final class LifecycleViewModel: CollectionComponentViewModelLifecycleProtocol { }
+
+private final class RecordingLifecycleViewModel: CollectionComponentViewModelLifecycleProtocol {
+    private(set) var events = [String]()
+
+    func shouldHighlight(indexPath: IndexPath) -> Bool {
+        events.append("shouldHighlight")
+        return false
+    }
+
+    func didHighlight(indexPath: IndexPath) {
+        events.append("didHighlight")
+    }
+
+    func didUnhighlight(indexPath: IndexPath) {
+        events.append("didUnhighlight")
+    }
+
+    func shouldSelect(indexPath: IndexPath) -> Bool {
+        events.append("shouldSelect")
+        return false
+    }
+
+    func didSelect(indexPath: IndexPath) {
+        events.append("didSelect")
+    }
+
+    func shouldDeselect(indexPath: IndexPath) -> Bool {
+        events.append("shouldDeselect")
+        return false
+    }
+
+    func didDeselect(indexPath: IndexPath) {
+        events.append("didDeselect")
+    }
+}
 
 private final class StoredViewModel { }
 
