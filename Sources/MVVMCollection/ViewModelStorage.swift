@@ -17,25 +17,25 @@ protocol ViewModelStorageProtocol: AnyObject {
 @MainActor
 final class ViewModelStorage: ViewModelStorageProtocol {
 
-    private var storage = [AnyHashable: Any]()
+    private var storage = [CollectionIdentifier: Any]()
 
     func setViewModel(
         viewModel: Any,
         for item: AnyHashable
     ) {
-        storage[item] = viewModel
+        storage[CollectionIdentifier(item)] = viewModel
     }
 
     func getViewModel(
         for item: AnyHashable
     ) -> Any? {
-        storage[item]
+        storage[CollectionIdentifier(item)]
     }
 
     func removeUnusedViewModels(
         for data: CollectionControllerData
     ) {
-        let newItems = Set(data.snapshot.itemIdentifiers.map(\.base))
+        let newItems = Set(data.snapshot.itemIdentifiers)
         let oldItems = Set(storage.keys)
         let removedItems = oldItems.subtracting(newItems)
         removedItems.forEach {

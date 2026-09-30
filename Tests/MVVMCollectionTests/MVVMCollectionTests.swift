@@ -154,6 +154,48 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertNotEqual(integer, byte)
     }
 
+    func testViewModelStorageKeepsDynamicTypeIdentity() throws {
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor<Int, String, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { "Int \($0)" },
+                assignViewModel: { viewModel, label in
+                    label.text = viewModel
+                }
+            )
+        )
+        registry.append(
+            CollectionComponentDescriptor<UInt8, String, UILabel>(
+                makeView: UILabel.init,
+                makeViewModel: { "UInt8 \($0)" },
+                assignViewModel: { viewModel, label in
+                    label.text = viewModel
+                }
+            )
+        )
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        controller.attach(to: collectionView)
+        controller.update(with: CollectionControllerData(items: [Int(1), UInt8(1)]))
+
+        let integerCell = try XCTUnwrap(
+            collectionView.dataSource?.collectionView(
+                collectionView,
+                cellForItemAt: IndexPath(item: 0, section: 0)
+            ) as? GenericCollectionViewCell<UILabel>
+        )
+        let byteCell = try XCTUnwrap(
+            collectionView.dataSource?.collectionView(
+                collectionView,
+                cellForItemAt: IndexPath(item: 1, section: 0)
+            ) as? GenericCollectionViewCell<UILabel>
+        )
+
+        XCTAssertEqual(integerCell.view.text, "Int 1")
+        XCTAssertEqual(byteCell.view.text, "UInt8 1")
+    }
+
     func testSizeCacheCanBeBoundedAndInvalidated() throws {
         let assignmentCounter = Counter()
         let viewFactory = CollectionComponentInitViewFactory<UILabel>()
