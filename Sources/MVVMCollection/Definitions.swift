@@ -13,7 +13,22 @@ typealias CellProvider = (
     _ indexPath: IndexPath
 ) -> UICollectionViewCell
 
+typealias ContextualCellProvider = (
+    _ runtime: CollectionComponentRuntime,
+    _ item: AnySendableHashable,
+    _ collectionView: UICollectionView,
+    _ indexPath: IndexPath
+) -> UICollectionViewCell
+
 typealias CellSizeProvider = (
+    _ item: AnySendableHashable,
+    _ collectionView: UICollectionView,
+    _ layout: UICollectionViewLayout,
+    _ indexPath: IndexPath
+) -> CGSize
+
+typealias ContextualCellSizeProvider = (
+    _ runtime: CollectionComponentRuntime,
     _ item: AnySendableHashable,
     _ collectionView: UICollectionView,
     _ layout: UICollectionViewLayout,

@@ -43,6 +43,51 @@ final class MVVMCollectionTests: XCTestCase {
         controller.update(with: CollectionControllerData(items: []))
         reloadToken.reload(animated: false)
     }
+
+    func testRegistryCanBeSharedByMultipleControllers() {
+        var madeViewModels = [ReloadableViewModel]()
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor(
+                viewFactory: CollectionComponentInitViewFactory<UILabel>(),
+                viewModelFactory: CollectionComponentBlockViewModelFactory<TestItem, ReloadableViewModel> { item in
+                    let viewModel = ReloadableViewModel(item: item)
+                    madeViewModels.append(viewModel)
+                    return viewModel
+                },
+                viewModelAssigner: CollectionComponentBlockViewModelAssigner<ReloadableViewModel, UILabel> { _, _ in }
+            )
+        )
+        let firstController = CollectionController(registry: registry)
+        let secondController = CollectionController(registry: registry)
+        let firstCollectionView = makeCollectionView()
+        let secondCollectionView = makeCollectionView()
+        let data = CollectionControllerData(items: [TestItem(id: 1)])
+
+        firstController.attach(to: firstCollectionView)
+        secondController.attach(to: secondCollectionView)
+        firstController.update(with: data)
+        secondController.update(with: data)
+
+        _ = firstCollectionView.dataSource?.collectionView(
+            firstCollectionView,
+            cellForItemAt: IndexPath(item: 0, section: 0)
+        )
+        _ = secondCollectionView.dataSource?.collectionView(
+            secondCollectionView,
+            cellForItemAt: IndexPath(item: 0, section: 0)
+        )
+
+        XCTAssertEqual(madeViewModels.count, 2)
+        XCTAssertFalse(madeViewModels[0] === madeViewModels[1])
+    }
+
+    private func makeCollectionView() -> UICollectionView {
+        UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 320, height: 480),
+            collectionViewLayout: UICollectionViewFlowLayout()
+        )
+    }
 }
 
 private final class ReloadTokenSpy: ReloadTokenProtocol {

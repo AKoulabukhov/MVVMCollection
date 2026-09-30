@@ -30,7 +30,9 @@ extension CollectionControllerProtocol {
 
 public final class CollectionController: CollectionControllerProtocol {
     private let registry: CollectionComponentRegistry
-    private let viewModelStorage = ViewModelStorage()
+    private lazy var runtime = CollectionComponentRuntime(
+        itemReloader: makeItemReloader()
+    )
     private lazy var delegate = makeDelegate()
 
     private weak var collectionView: UICollectionView?
@@ -41,8 +43,6 @@ public final class CollectionController: CollectionControllerProtocol {
         registry: CollectionComponentRegistry
     ) {
         self.registry = registry
-        registry.viewModelStorage = viewModelStorage
-        registry.itemReloader = makeItemReloader()
     }
 
     // MARK: - CollectionControllerProtocol
@@ -114,7 +114,7 @@ public final class CollectionController: CollectionControllerProtocol {
             animatingDifferences: animated,
             completion: completion
         )
-        viewModelStorage.removeUnusedViewModels(for: newData)
+        runtime.viewModelStorage.removeUnusedViewModels(for: newData)
     }
 
     private func updateDataSource(
@@ -146,7 +146,7 @@ public final class CollectionController: CollectionControllerProtocol {
                 self?.performWithItem(
                     at: indexPath,
                     block: { strongSelf, item in
-                        strongSelf.viewModelStorage.getViewModel(
+                        strongSelf.runtime.viewModelStorage.getViewModel(
                             for: item
                         )
                     }
@@ -154,11 +154,12 @@ public final class CollectionController: CollectionControllerProtocol {
             },
             sizeProvider: { [weak self] collectionView, layout, indexPath in
                 self?.performWithItem(
-                    at: indexPath,
-                    block: { strongSelf, item in
-                        strongSelf.registry.cellSizeProviders[TypeIdentifier(item)]?(
-                            item,
-                            collectionView,
+                        at: indexPath,
+                        block: { strongSelf, item in
+                            strongSelf.registry.cellSizeProviders[TypeIdentifier(item)]?(
+                                strongSelf.runtime,
+                                item,
+                                collectionView,
                             layout,
                             indexPath
                         )
@@ -194,7 +195,7 @@ public final class CollectionController: CollectionControllerProtocol {
     }
 
     private func makeCellProvider() -> DataSource.CellProvider {
-        { [registry] collectionView, indexPath, item in
+        { [registry, runtime] collectionView, indexPath, item in
             let typeIdentifier = TypeIdentifier(item)
             guard let cellProvider = registry.cellProviders[typeIdentifier] else {
                 let errorMessage = "No descriptor found for \(typeIdentifier.stringValue)"
@@ -205,6 +206,7 @@ public final class CollectionController: CollectionControllerProtocol {
                 )
             }
             return cellProvider(
+                runtime,
                 item,
                 collectionView,
                 indexPath
