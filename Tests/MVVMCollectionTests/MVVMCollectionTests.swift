@@ -354,6 +354,73 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertEqual(assignmentCounter.value, 4)
     }
 
+    func testSizeCacheEvictsLeastRecentlyUsedEntry() throws {
+        let assignmentCounter = Counter()
+        let viewFactory = CollectionComponentInitViewFactory<UILabel>()
+        let assigner = CollectionComponentBlockViewModelAssigner<SizingViewModel, UILabel> { _, _ in
+            assignmentCounter.value += 1
+        }
+        let calculator = CollectionComponentAutolayoutSizeCalculator(
+            viewFactory: viewFactory,
+            viewModelAssigner: assigner,
+            maximumCachedSizeCount: 2
+        )
+        let collectionView = makeCollectionView()
+        let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
+        let indexPath = IndexPath(item: 0, section: 0)
+
+        func calculate(_ contentHash: Int) {
+            _ = calculator.calculateSize(
+                for: SizingViewModel(contentHash: contentHash),
+                collectionView: collectionView,
+                layout: layout,
+                indexPath: indexPath
+            )
+        }
+
+        calculate(1)
+        calculate(2)
+        calculate(1)
+        calculate(3)
+        calculate(1)
+        XCTAssertEqual(assignmentCounter.value, 3)
+
+        calculate(2)
+        XCTAssertEqual(assignmentCounter.value, 4)
+    }
+
+    func testSizeCacheSeparatesDifferentCollectionWidths() throws {
+        let assignmentCounter = Counter()
+        let viewFactory = CollectionComponentInitViewFactory<UILabel>()
+        let assigner = CollectionComponentBlockViewModelAssigner<SizingViewModel, UILabel> { _, _ in
+            assignmentCounter.value += 1
+        }
+        let calculator = CollectionComponentAutolayoutSizeCalculator(
+            viewFactory: viewFactory,
+            viewModelAssigner: assigner
+        )
+        let collectionView = makeCollectionView()
+        let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
+        let indexPath = IndexPath(item: 0, section: 0)
+        let viewModel = SizingViewModel(contentHash: 1)
+
+        _ = calculator.calculateSize(
+            for: viewModel,
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        collectionView.bounds.size.width = 200
+        _ = calculator.calculateSize(
+            for: viewModel,
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+
+        XCTAssertEqual(assignmentCounter.value, 2)
+    }
+
     func testDescriptorCanBeConfiguredWithClosures() throws {
         let descriptor = CollectionComponentDescriptor<TestItem, String, UILabel>(
             makeView: UILabel.init,
