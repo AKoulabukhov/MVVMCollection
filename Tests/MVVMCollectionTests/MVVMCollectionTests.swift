@@ -579,6 +579,53 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertTrue(sizingViewModel === assignedViewModel)
     }
 
+    func testAutolayoutSizingRespectsAxisInsetsAndMinimumSize() throws {
+        let viewFactory = CollectionComponentBlockViewFactory<SizingTestView> {
+            SizingTestView(fittingSize: CGSize(width: 40, height: 20))
+        }
+        let assigner = CollectionComponentBlockViewModelAssigner<Int, SizingTestView> { _, _ in }
+        let collectionView = makeCollectionView()
+        let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
+        layout.sectionInset = UIEdgeInsets(top: 5, left: 10, bottom: 15, right: 20)
+        let indexPath = IndexPath(item: 0, section: 0)
+
+        let fillingCalculator = CollectionComponentAutolayoutSizeCalculator(
+            viewFactory: viewFactory,
+            viewModelAssigner: assigner,
+            minSize: CGSize(width: 50, height: 30)
+        )
+        let verticalSize = fillingCalculator.calculateSize(
+            for: 1,
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(verticalSize, CGSize(width: 290, height: 30))
+
+        let intrinsicWidthCalculator = CollectionComponentAutolayoutSizeCalculator(
+            viewFactory: viewFactory,
+            viewModelAssigner: assigner,
+            minSize: CGSize(width: 50, height: 30),
+            fillsThroughAxis: false
+        )
+        let intrinsicWidthSize = intrinsicWidthCalculator.calculateSize(
+            for: 1,
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(intrinsicWidthSize, CGSize(width: 50, height: 30))
+
+        layout.scrollDirection = .horizontal
+        let horizontalSize = fillingCalculator.calculateSize(
+            for: 1,
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(horizontalSize, CGSize(width: 50, height: 460))
+    }
+
     func testDescriptorCanBeConfiguredWithClosures() throws {
         let descriptor = CollectionComponentDescriptor<TestItem, String, UILabel>(
             makeView: UILabel.init,
@@ -742,6 +789,28 @@ private final class FlowLayoutDelegateSpy: NSObject, UICollectionViewDelegateFlo
     ) -> CGSize {
         sizeRequestCount += 1
         return size
+    }
+}
+
+private final class SizingTestView: UIView {
+    private let fittingSize: CGSize
+
+    init(fittingSize: CGSize) {
+        self.fittingSize = fittingSize
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is unavailable")
+    }
+
+    override func systemLayoutSizeFitting(
+        _ targetSize: CGSize,
+        withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
+        verticalFittingPriority: UILayoutPriority
+    ) -> CGSize {
+        fittingSize
     }
 }
 
