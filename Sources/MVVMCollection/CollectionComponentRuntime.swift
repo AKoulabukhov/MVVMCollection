@@ -1,14 +1,14 @@
 import Foundation
 
+@MainActor
 final class CollectionComponentRuntime {
     let viewModelStorage: ViewModelStorageProtocol
     let itemReloader: ItemReloader
 
     init(
-        viewModelStorage: ViewModelStorageProtocol = ViewModelStorage(),
         itemReloader: @escaping ItemReloader
     ) {
-        self.viewModelStorage = viewModelStorage
+        self.viewModelStorage = ViewModelStorage()
         self.itemReloader = itemReloader
     }
 }

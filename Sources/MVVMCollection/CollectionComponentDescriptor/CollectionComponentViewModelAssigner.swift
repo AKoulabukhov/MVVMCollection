@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public protocol CollectionComponentViewModelAssignerProtocol {
     associatedtype ViewModel
     associatedtype View
@@ -10,6 +11,7 @@ public protocol CollectionComponentViewModelAssignerProtocol {
     )
 }
 
+@MainActor
 public struct CollectionComponentBlockViewModelAssigner<ViewModel, View>: CollectionComponentViewModelAssignerProtocol {
     private let assignmentBlock: (ViewModel, View) -> Void
 

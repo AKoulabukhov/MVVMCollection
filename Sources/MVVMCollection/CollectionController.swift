@@ -1,6 +1,7 @@
 import UIKit
 
-@MainActor public protocol CollectionControllerProtocol: AnyObject {
+@MainActor
+public protocol CollectionControllerProtocol: AnyObject {
     var scrollViewDelegate: UIScrollViewDelegate? { get set }
     var flowLayoutDelegate: UICollectionViewDelegateFlowLayout? { get set }
     var supplementaryViewProvider: SupplementaryViewProvider? { get set }
@@ -28,6 +29,7 @@ extension CollectionControllerProtocol {
     }
 }
 
+@MainActor
 public final class CollectionController: CollectionControllerProtocol {
     private let registry: CollectionComponentRegistry
     private lazy var runtime = CollectionComponentRuntime(
@@ -183,9 +185,9 @@ public final class CollectionController: CollectionControllerProtocol {
 
     private func performWithItem<Result>(
         at indexPath: IndexPath,
-        block: (CollectionController, AnySendableHashable) -> Result?
+        block: (CollectionController, AnyHashable) -> Result?
     ) -> Result? {
-        guard let item = self.dataSource?.itemIdentifier(for: indexPath) else { return nil }
+        guard let item = self.dataSource?.itemIdentifier(for: indexPath)?.base else { return nil }
         return block(self, item)
     }
 
@@ -193,11 +195,12 @@ public final class CollectionController: CollectionControllerProtocol {
         { [weak self] item, animated in
             guard let dataSource = self?.dataSource else { return }
             var snapshot = dataSource.snapshot()
-            guard snapshot.indexOfItem(item) != nil else { return }
+            let identifier = CollectionIdentifier(item)
+            guard snapshot.indexOfItem(identifier) != nil else { return }
             if #available(iOS 15.0, tvOS 15.0, macCatalyst 15.0, *) {
-                snapshot.reconfigureItems([item])
+                snapshot.reconfigureItems([identifier])
             } else {
-                snapshot.reloadItems([item])
+                snapshot.reloadItems([identifier])
             }
             dataSource.apply(
                 snapshot,
@@ -207,7 +210,8 @@ public final class CollectionController: CollectionControllerProtocol {
     }
 
     private func makeCellProvider() -> DataSource.CellProvider {
-        { [registry, runtime] collectionView, indexPath, item in
+        { [registry, runtime] collectionView, indexPath, identifier in
+            let item = identifier.base
             let typeIdentifier = TypeIdentifier(item)
             guard let cellProvider = registry.cellProviders[typeIdentifier] else {
                 let errorMessage = "No descriptor found for \(typeIdentifier.stringValue)"

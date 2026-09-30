@@ -1,6 +1,7 @@
 import UIKit
 
-@MainActor public final class CollectionComponentRegistry {
+@MainActor
+public final class CollectionComponentRegistry {
     var cellRegistrators = [CellRegistrator]()
     var cellProviders = [TypeIdentifier: ContextualCellProvider]()
     var cellSizeProviders = [TypeIdentifier: ContextualCellSizeProvider]()
@@ -20,9 +21,9 @@ import UIKit
             )
         })
 
-        let obtainViewModel: (CollectionComponentRuntime, AnySendableHashable) -> ViewModel = { runtime, item in
+        let obtainViewModel: (CollectionComponentRuntime, AnyHashable) -> ViewModel = { runtime, item in
             /// UICollectionViewDiffableDataSource forces type erasure for multiple items type support
-            let castedItem = item.wrappedValue.base as! Item
+            let castedItem = item.base as! Item
 
             let viewModelStorage = runtime.viewModelStorage
             if let viewModel = viewModelStorage.getViewModel(for: item) as? ViewModel {

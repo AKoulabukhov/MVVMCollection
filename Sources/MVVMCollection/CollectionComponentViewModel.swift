@@ -5,6 +5,7 @@ import Foundation
 /// Protocol which view model can confom to react on cell events
 /// Other UICollectionViewDelegate highly dependent on UIKit
 /// so it looks better to decouple this logic from view models
+@MainActor
 public protocol CollectionComponentViewModelLifecycleProtocol {
     func shouldHighlight(indexPath: IndexPath) -> Bool
     func didHighlight(indexPath: IndexPath)
@@ -35,6 +36,7 @@ public extension CollectionComponentViewModelLifecycleProtocol {
 
 // MARK: - Updates
 
+@MainActor
 public protocol ReloadTokenProtocol {
     func reload(animated: Bool)
 }
@@ -54,6 +56,7 @@ struct BlockReloadToken: ReloadTokenProtocol {
 
 /// If view model's view needs to be redrawn (e.g. content changed and size is invalid anymore)
 /// you can use the token to trigger an underlying cell reload
+@MainActor
 public protocol CollectionComponentViewModelReloadableProtocol {
     func storeReloadToken(_ token: ReloadTokenProtocol)
 }
@@ -62,6 +65,7 @@ public protocol CollectionComponentViewModelReloadableProtocol {
 
 /// If view model conforms this protocol - calculated size will be cached and reused
 /// otherwise - it will be recalculated all the time and might cause performance issues
+@MainActor
 public protocol CollectionComponentViewModelHashableContentProtocol {
     var contentHash: Int { get }
 }

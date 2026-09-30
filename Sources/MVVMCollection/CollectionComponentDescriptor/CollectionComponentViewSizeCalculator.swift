@@ -2,7 +2,8 @@ import UIKit
 
 /// Works only with UICollectionViewFlowLayout
 /// For any custom layout it will not be used
-@MainActor public protocol CollectionComponentViewSizeCalculatorProtocol {
+@MainActor
+public protocol CollectionComponentViewSizeCalculatorProtocol {
     associatedtype ViewModel
 
     func calculateSize(
@@ -18,6 +19,7 @@ private enum Constants {
     static let reasonablyBigDimension: CGFloat = 10000
 }
 
+@MainActor
 public final class CollectionComponentAutolayoutSizeCalculator<
     ViewModel,
     ViewFactory: CollectionComponentViewFactoryProtocol,

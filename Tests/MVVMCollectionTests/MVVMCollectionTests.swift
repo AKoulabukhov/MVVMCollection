@@ -146,6 +146,13 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertNil(weakViewModel)
     }
 
+    func testTypeErasedIdentifiersKeepDynamicTypeIdentity() {
+        let integer = CollectionIdentifier(AnyHashable(Int(1)))
+        let byte = CollectionIdentifier(AnyHashable(UInt8(1)))
+
+        XCTAssertNotEqual(integer, byte)
+    }
+
     private func makeCollectionView() -> UICollectionView {
         UICollectionView(
             frame: CGRect(x: 0, y: 0, width: 320, height: 480),
