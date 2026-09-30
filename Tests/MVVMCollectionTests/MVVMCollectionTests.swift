@@ -259,6 +259,18 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertEqual(cell.view.text, "Late item 9")
     }
 
+    func testDataCanBeCreatedWithCorrectlyNamedSectionProtocol() {
+        let data = CollectionControllerData(
+            sections: [
+                TestSection(id: 1, items: [TestItem(id: 1)]),
+                TestSection(id: 2, items: [TestItem(id: 2), TestItem(id: 3)]),
+            ]
+        )
+
+        XCTAssertEqual(data.snapshot.numberOfSections, 2)
+        XCTAssertEqual(data.snapshot.numberOfItems, 3)
+    }
+
     private func makeCollectionView() -> UICollectionView {
         UICollectionView(
             frame: CGRect(x: 0, y: 0, width: 320, height: 480),
@@ -277,6 +289,11 @@ private final class ReloadTokenSpy: ReloadTokenProtocol {
 
 private struct TestItem: Hashable {
     let id: Int
+}
+
+private struct TestSection: CollectionControllerDataSectionProtocol {
+    let id: Int
+    let items: [AnyHashable]
 }
 
 private final class ReloadableViewModel: CollectionComponentViewModelReloadableProtocol {

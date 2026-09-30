@@ -1,8 +1,11 @@
 import UIKit
 
-public protocol CollectionConrollerDataSectionProtocol: Hashable {
+public protocol CollectionControllerDataSectionProtocol: Hashable {
     var items: [AnyHashable] { get }
 }
+
+@available(*, deprecated, renamed: "CollectionControllerDataSectionProtocol")
+public typealias CollectionConrollerDataSectionProtocol = CollectionControllerDataSectionProtocol
 
 public final class CollectionControllerData {
     public init() { }
@@ -18,7 +21,7 @@ public final class CollectionControllerData {
         )
     }
 
-    public init<Section: CollectionConrollerDataSectionProtocol>(
+    public init<Section: CollectionControllerDataSectionProtocol>(
         sections: [Section]
     ) {
         sections.forEach { section in
