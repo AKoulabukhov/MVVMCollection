@@ -134,6 +134,7 @@ final class MVVMCollectionTests: XCTestCase {
             forItemAt: indexPath
         )
 
+        XCTAssertNotNil(viewModel)
         viewModel = nil
         controller.update(with: CollectionControllerData(items: []))
 
@@ -151,6 +152,60 @@ final class MVVMCollectionTests: XCTestCase {
         let byte = CollectionIdentifier(AnyHashable(UInt8(1)))
 
         XCTAssertNotEqual(integer, byte)
+    }
+
+    func testSizeCacheCanBeBoundedAndInvalidated() throws {
+        let assignmentCounter = Counter()
+        let viewFactory = CollectionComponentInitViewFactory<UILabel>()
+        let assigner = CollectionComponentBlockViewModelAssigner<SizingViewModel, UILabel> { viewModel, label in
+            assignmentCounter.value += 1
+            label.text = String(repeating: "x", count: viewModel.contentHash)
+        }
+        let calculator = CollectionComponentAutolayoutSizeCalculator(
+            viewFactory: viewFactory,
+            viewModelAssigner: assigner,
+            maximumCachedSizeCount: 1
+        )
+        let collectionView = makeCollectionView()
+        let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
+        let indexPath = IndexPath(item: 0, section: 0)
+
+        _ = calculator.calculateSize(
+            for: SizingViewModel(contentHash: 1),
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        _ = calculator.calculateSize(
+            for: SizingViewModel(contentHash: 1),
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(assignmentCounter.value, 1)
+
+        _ = calculator.calculateSize(
+            for: SizingViewModel(contentHash: 2),
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        _ = calculator.calculateSize(
+            for: SizingViewModel(contentHash: 1),
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(assignmentCounter.value, 3)
+
+        calculator.invalidateCache()
+        _ = calculator.calculateSize(
+            for: SizingViewModel(contentHash: 1),
+            collectionView: collectionView,
+            layout: layout,
+            indexPath: indexPath
+        )
+        XCTAssertEqual(assignmentCounter.value, 4)
     }
 
     private func makeCollectionView() -> UICollectionView {
@@ -187,3 +242,11 @@ private final class ReloadableViewModel: CollectionComponentViewModelReloadableP
 }
 
 private final class LifecycleViewModel: CollectionComponentViewModelLifecycleProtocol { }
+
+private struct SizingViewModel: CollectionComponentViewModelHashableContentProtocol {
+    let contentHash: Int
+}
+
+private final class Counter {
+    var value = 0
+}

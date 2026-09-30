@@ -32,20 +32,30 @@ public final class CollectionComponentAutolayoutSizeCalculator<
     private let viewModelAssigner: ViewModelAssigner
     private let minSize: CGSize
     private let fillsThroughAxis: Bool
+    private let maximumCachedSizeCount: Int
 
     private lazy var view = viewFactory.makeView()
     private lazy var cache = [SizeCacheKey: CGSize]()
+    private lazy var cacheAccessOrder = [SizeCacheKey]()
 
     public init(
         viewFactory: ViewFactory,
         viewModelAssigner: ViewModelAssigner,
         minSize: CGSize = .zero,
-        fillsThroughAxis: Bool = true
+        fillsThroughAxis: Bool = true,
+        maximumCachedSizeCount: Int = 500
     ) {
+        precondition(maximumCachedSizeCount >= 0, "maximumCachedSizeCount must not be negative")
         self.viewFactory = viewFactory
         self.viewModelAssigner = viewModelAssigner
         self.minSize = minSize
         self.fillsThroughAxis = fillsThroughAxis
+        self.maximumCachedSizeCount = maximumCachedSizeCount
+    }
+
+    public func invalidateCache() {
+        cache.removeAll(keepingCapacity: true)
+        cacheAccessOrder.removeAll(keepingCapacity: true)
     }
     
     public func calculateSize(
@@ -144,18 +154,38 @@ public final class CollectionComponentAutolayoutSizeCalculator<
                 maxSize: maxSize,
                 minSize: minSize,
                 fillsThroughAxis: fillsThroughAxis,
-                scrollDirection: layout.scrollDirection
+                scrollDirection: layout.scrollDirection,
+                traitCollection: collectionView.traitCollection,
+                layoutDirection: collectionView.effectiveUserInterfaceLayoutDirection
             )
             if let cachedSize = cache[cacheKey] {
+                markCacheKeyAsRecentlyUsed(cacheKey)
                 return cachedSize
             } else {
                 let size = calculateSize()
-                cache[cacheKey] = size
+                cacheSize(size, for: cacheKey)
                 return size
             }
         } else {
             return calculateSize()
         }
+    }
+
+    private func cacheSize(_ size: CGSize, for key: SizeCacheKey) {
+        guard maximumCachedSizeCount > 0 else { return }
+
+        while cache.count >= maximumCachedSizeCount, let oldestKey = cacheAccessOrder.first {
+            cache[oldestKey] = nil
+            cacheAccessOrder.removeFirst()
+        }
+        cache[key] = size
+        cacheAccessOrder.append(key)
+    }
+
+    private func markCacheKeyAsRecentlyUsed(_ key: SizeCacheKey) {
+        guard let index = cacheAccessOrder.firstIndex(of: key) else { return }
+        cacheAccessOrder.remove(at: index)
+        cacheAccessOrder.append(key)
     }
 }
 
@@ -169,6 +199,11 @@ private struct SizeCacheKey: Hashable {
     let minSizeHeight: CGFloat
     let fillsThroughAxis: Bool
     let scrollDirection: UICollectionView.ScrollDirection.RawValue
+    let preferredContentSizeCategory: String
+    let horizontalSizeClass: UIUserInterfaceSizeClass.RawValue
+    let verticalSizeClass: UIUserInterfaceSizeClass.RawValue
+    let displayScale: CGFloat
+    let layoutDirection: UIUserInterfaceLayoutDirection.RawValue
 
     init(
         viewModelType: Any.Type,
@@ -176,7 +211,9 @@ private struct SizeCacheKey: Hashable {
         maxSize: CGSize,
         minSize: CGSize,
         fillsThroughAxis: Bool,
-        scrollDirection: UICollectionView.ScrollDirection
+        scrollDirection: UICollectionView.ScrollDirection,
+        traitCollection: UITraitCollection,
+        layoutDirection: UIUserInterfaceLayoutDirection
     ) {
         self.viewModelType = String(reflecting: viewModelType)
         self.contentHash = contentHash
@@ -186,6 +223,11 @@ private struct SizeCacheKey: Hashable {
         self.minSizeHeight = minSize.height
         self.fillsThroughAxis = fillsThroughAxis
         self.scrollDirection = scrollDirection.rawValue
+        self.preferredContentSizeCategory = traitCollection.preferredContentSizeCategory.rawValue
+        self.horizontalSizeClass = traitCollection.horizontalSizeClass.rawValue
+        self.verticalSizeClass = traitCollection.verticalSizeClass.rawValue
+        self.displayScale = traitCollection.displayScale
+        self.layoutDirection = layoutDirection.rawValue
     }
 }
 
