@@ -38,6 +38,7 @@ public final class CollectionController: CollectionControllerProtocol {
     private weak var collectionView: UICollectionView?
     private var dataSource: DataSource?
     private var data: CollectionControllerData?
+    private var pendingUpdateCompletions = [() -> Void]()
 
     public init(
         registry: CollectionComponentRegistry
@@ -109,11 +110,15 @@ public final class CollectionController: CollectionControllerProtocol {
         completion: (() -> Void)?
     ) {
         data = newData
-        dataSource?.apply(
-            newData.snapshot,
-            animatingDifferences: animated,
-            completion: completion
-        )
+        if let dataSource = dataSource {
+            dataSource.apply(
+                newData.snapshot,
+                animatingDifferences: animated,
+                completion: completion
+            )
+        } else if let completion = completion {
+            pendingUpdateCompletions.append(completion)
+        }
         runtime.viewModelStorage.removeUnusedViewModels(for: newData)
     }
 
@@ -131,7 +136,14 @@ public final class CollectionController: CollectionControllerProtocol {
 
     private func applyDataSnapshot() {
         guard let dataSource = dataSource, let data = data else { return }
-        dataSource.apply(data.snapshot)
+        let completions = pendingUpdateCompletions
+        pendingUpdateCompletions.removeAll()
+        dataSource.apply(
+            data.snapshot,
+            completion: {
+                completions.forEach { $0() }
+            }
+        )
     }
 
     private func registerCells(in collectionView: UICollectionView) {

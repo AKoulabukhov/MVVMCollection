@@ -346,58 +346,18 @@ private extension UICollectionViewCell {
 
     var appearanceDelegate: CollectionComponentViewModelLifecycleProtocol? {
         get {
-            let container = objc_getAssociatedObject(
+            objc_getAssociatedObject(
                 self,
                 &UICollectionViewCell.appearanceDelegateKey
-            ) as? Container
-            return container?.object as? CollectionComponentViewModelLifecycleProtocol
+            ) as? CollectionComponentViewModelLifecycleProtocol
         }
         set {
-            let params: (object: AnyObject, policy: Container.Policy)?
-            if let newValueObject = newValue as? (AnyObject & CollectionComponentViewModelLifecycleProtocol) {
-                params = (newValueObject, .weak)
-            } else if let newValue = newValue {
-                params = (newValue as AnyObject, .strong)
-            } else {
-                params = nil
-            }
             objc_setAssociatedObject(
                 self,
                 &UICollectionViewCell.appearanceDelegateKey,
-                params.map {
-                    Container(
-                        object: $0.object,
-                        policy: $0.policy
-                    )
-                },
+                newValue,
                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC
             )
-        }
-    }
-}
-
-private final class Container {
-    enum Policy { case weak, strong }
-
-    private let policy: Policy
-    private weak var weakRefence: AnyObject?
-    private var strongReference: AnyObject?
-
-    var object: AnyObject? {
-        switch policy {
-        case .weak: return weakRefence
-        case .strong: return strongReference
-        }
-    }
-
-    init(
-        object: AnyObject,
-        policy: Policy
-    ) {
-        self.policy = policy
-        switch policy {
-        case .weak: weakRefence = object
-        case .strong: strongReference = object
         }
     }
 }

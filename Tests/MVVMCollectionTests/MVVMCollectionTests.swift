@@ -82,6 +82,70 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertFalse(madeViewModels[0] === madeViewModels[1])
     }
 
+    func testUpdateCompletionWaitsForAttach() {
+        let controller = CollectionController(registry: CollectionComponentRegistry())
+        let completion = expectation(description: "update completion")
+        var wasCompleted = false
+
+        controller.update(
+            with: CollectionControllerData(),
+            completion: {
+                wasCompleted = true
+                completion.fulfill()
+            }
+        )
+
+        XCTAssertFalse(wasCompleted)
+        controller.attach(to: makeCollectionView())
+        wait(for: [completion], timeout: 1)
+        XCTAssertTrue(wasCompleted)
+    }
+
+    func testViewModelLivesUntilDidEndDisplaying() throws {
+        var viewModel: LifecycleViewModel?
+        weak var weakViewModel: LifecycleViewModel?
+        let registry = CollectionComponentRegistry()
+        registry.append(
+            CollectionComponentDescriptor(
+                viewFactory: CollectionComponentInitViewFactory<UILabel>(),
+                viewModelFactory: CollectionComponentBlockViewModelFactory<TestItem, LifecycleViewModel> { _ in
+                    let model = LifecycleViewModel()
+                    viewModel = model
+                    weakViewModel = model
+                    return model
+                },
+                viewModelAssigner: CollectionComponentBlockViewModelAssigner<LifecycleViewModel, UILabel> { _, _ in }
+            )
+        )
+        let controller = CollectionController(registry: registry)
+        let collectionView = makeCollectionView()
+        let indexPath = IndexPath(item: 0, section: 0)
+        controller.attach(to: collectionView)
+        controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
+        let cell = try XCTUnwrap(
+            collectionView.dataSource?.collectionView(
+                collectionView,
+                cellForItemAt: indexPath
+            )
+        )
+        collectionView.delegate?.collectionView?(
+            collectionView,
+            willDisplay: cell,
+            forItemAt: indexPath
+        )
+
+        viewModel = nil
+        controller.update(with: CollectionControllerData(items: []))
+
+        XCTAssertNotNil(weakViewModel)
+        collectionView.delegate?.collectionView?(
+            collectionView,
+            didEndDisplaying: cell,
+            forItemAt: indexPath
+        )
+        XCTAssertNil(weakViewModel)
+    }
+
     private func makeCollectionView() -> UICollectionView {
         UICollectionView(
             frame: CGRect(x: 0, y: 0, width: 320, height: 480),
@@ -114,3 +178,5 @@ private final class ReloadableViewModel: CollectionComponentViewModelReloadableP
         reloadToken = token
     }
 }
+
+private final class LifecycleViewModel: CollectionComponentViewModelLifecycleProtocol { }
