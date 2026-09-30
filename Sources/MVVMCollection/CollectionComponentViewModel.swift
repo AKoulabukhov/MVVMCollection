@@ -39,9 +39,9 @@ public protocol ReloadTokenProtocol {
     func reload(animated: Bool)
 }
 
-extension ReloadTokenProtocol {
-    public func reload(animated: Bool = false) {
-        reload(animated: animated)
+public extension ReloadTokenProtocol {
+    func reload() {
+        reload(animated: false)
     }
 }
 

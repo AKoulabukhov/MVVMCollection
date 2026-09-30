@@ -180,10 +180,11 @@ public final class CollectionController: CollectionControllerProtocol {
         { [weak self] item, animated in
             guard let dataSource = self?.dataSource else { return }
             var snapshot = dataSource.snapshot()
-            if #available(iOS 15.0, *) {
-                snapshot.reconfigureItems([AnySendableHashable(item)])
+            guard snapshot.indexOfItem(item) != nil else { return }
+            if #available(iOS 15.0, tvOS 15.0, macCatalyst 15.0, *) {
+                snapshot.reconfigureItems([item])
             } else {
-                snapshot.reloadItems([AnySendableHashable(item)])
+                snapshot.reloadItems([item])
             }
             dataSource.apply(
                 snapshot,
