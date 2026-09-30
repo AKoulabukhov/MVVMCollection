@@ -101,6 +101,58 @@ final class MVVMCollectionTests: XCTestCase {
         XCTAssertTrue(wasCompleted)
     }
 
+    func testPendingUpdatesApplyLatestDataAndCompleteInOrder() throws {
+        let controller = CollectionController(registry: CollectionComponentRegistry())
+        let firstCompletion = expectation(description: "first update completion")
+        let secondCompletion = expectation(description: "second update completion")
+        var completionOrder = [Int]()
+
+        controller.update(
+            with: CollectionControllerData(items: [TestItem(id: 1)]),
+            completion: {
+                completionOrder.append(1)
+                firstCompletion.fulfill()
+            }
+        )
+        controller.update(
+            with: CollectionControllerData(items: [TestItem(id: 2), TestItem(id: 3)]),
+            completion: {
+                completionOrder.append(2)
+                secondCompletion.fulfill()
+            }
+        )
+
+        let collectionView = makeCollectionView()
+        controller.attach(to: collectionView)
+        wait(for: [firstCompletion, secondCompletion], timeout: 1)
+
+        let dataSource = try XCTUnwrap(collectionView.dataSource as? DataSource)
+        XCTAssertEqual(completionOrder, [1, 2])
+        XCTAssertEqual(
+            dataSource.snapshot().itemIdentifiers.map(\.base),
+            [AnyHashable(TestItem(id: 2)), AnyHashable(TestItem(id: 3))]
+        )
+    }
+
+    func testAttachingToAnotherCollectionViewDetachesThePreviousOne() throws {
+        let controller = CollectionController(registry: CollectionComponentRegistry())
+        let firstCollectionView = makeCollectionView()
+        let secondCollectionView = makeCollectionView()
+        controller.attach(to: firstCollectionView)
+        controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
+
+        controller.attach(to: secondCollectionView)
+
+        XCTAssertNil(firstCollectionView.dataSource)
+        XCTAssertNil(firstCollectionView.delegate)
+        XCTAssertNotNil(secondCollectionView.delegate)
+        let dataSource = try XCTUnwrap(secondCollectionView.dataSource as? DataSource)
+        XCTAssertEqual(
+            dataSource.snapshot().itemIdentifiers.map(\.base),
+            [AnyHashable(TestItem(id: 1))]
+        )
+    }
+
     func testViewModelLivesUntilDidEndDisplaying() throws {
         var viewModel: LifecycleViewModel?
         weak var weakViewModel: LifecycleViewModel?
