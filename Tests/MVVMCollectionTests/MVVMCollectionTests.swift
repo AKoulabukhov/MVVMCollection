@@ -27,24 +27,28 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = UICollectionView(
-            frame: CGRect(x: 0, y: 0, width: 320, height: 480),
-            collectionViewLayout: UICollectionViewFlowLayout()
-        )
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         controller.attach(to: collectionView)
         controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
 
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: IndexPath(item: 0, section: 0)
-        )
+        _ = try harness.displayedCell(at: IndexPath(item: 0, section: 0))
         let reloadToken = try XCTUnwrap(viewModel?.reloadToken)
 
-        controller.update(with: CollectionControllerData(items: []))
+        let removalCompletion = expectation(description: "item removal")
+        controller.update(
+            with: CollectionControllerData(items: []),
+            completion: removalCompletion.fulfill
+        )
+        wait(for: [removalCompletion], timeout: 1)
+        harness.layout()
         reloadToken.reload(animated: false)
+
+        let dataSource = try XCTUnwrap(collectionView.dataSource as? DataSource)
+        XCTAssertEqual(dataSource.snapshot().numberOfItems, 0)
     }
 
-    func testRegistryCanBeSharedByMultipleControllers() {
+    func testRegistryCanBeSharedByMultipleControllers() throws {
         var madeViewModels = [ReloadableViewModel]()
         let registry = CollectionComponentRegistry()
         registry.append(
@@ -60,8 +64,10 @@ final class MVVMCollectionTests: XCTestCase {
         )
         let firstController = CollectionController(registry: registry)
         let secondController = CollectionController(registry: registry)
-        let firstCollectionView = makeCollectionView()
-        let secondCollectionView = makeCollectionView()
+        let firstHarness = CollectionViewHarness()
+        let secondHarness = CollectionViewHarness()
+        let firstCollectionView = firstHarness.collectionView
+        let secondCollectionView = secondHarness.collectionView
         let data = CollectionControllerData(items: [TestItem(id: 1)])
 
         firstController.attach(to: firstCollectionView)
@@ -69,20 +75,14 @@ final class MVVMCollectionTests: XCTestCase {
         firstController.update(with: data)
         secondController.update(with: data)
 
-        _ = firstCollectionView.dataSource?.collectionView(
-            firstCollectionView,
-            cellForItemAt: IndexPath(item: 0, section: 0)
-        )
-        _ = secondCollectionView.dataSource?.collectionView(
-            secondCollectionView,
-            cellForItemAt: IndexPath(item: 0, section: 0)
-        )
+        _ = try firstHarness.displayedCell(at: IndexPath(item: 0, section: 0))
+        _ = try secondHarness.displayedCell(at: IndexPath(item: 0, section: 0))
 
         XCTAssertEqual(madeViewModels.count, 2)
         XCTAssertFalse(madeViewModels[0] === madeViewModels[1])
     }
 
-    func testViewModelIsReusedUntilItsItemIsRemoved() {
+    func testViewModelIsReusedUntilItsItemIsRemoved() throws {
         var creationCount = 0
         weak var storedViewModel: StoredViewModel?
         let registry = CollectionComponentRegistry()
@@ -99,37 +99,26 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let firstHarness = CollectionViewHarness()
+        let secondHarness = CollectionViewHarness()
         let data = CollectionControllerData(items: [TestItem(id: 1)])
         let indexPath = IndexPath(item: 0, section: 0)
-        controller.attach(to: collectionView)
+        controller.attach(to: firstHarness.collectionView)
         controller.update(with: data)
 
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
-        controller.update(with: data)
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
+        _ = try firstHarness.displayedCell(at: indexPath)
+        controller.attach(to: secondHarness.collectionView)
+        _ = try secondHarness.displayedCell(at: indexPath)
 
         XCTAssertEqual(creationCount, 1)
         XCTAssertNotNil(storedViewModel)
 
         controller.update(with: CollectionControllerData(items: []))
+        secondHarness.layout()
         XCTAssertNil(storedViewModel)
 
         controller.update(with: data)
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
+        _ = try secondHarness.displayedCell(at: indexPath)
         XCTAssertEqual(creationCount, 2)
         XCTAssertNotNil(storedViewModel)
     }
@@ -222,32 +211,23 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         let indexPath = IndexPath(item: 0, section: 0)
         controller.attach(to: collectionView)
         controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
-        let cell = try XCTUnwrap(
-            collectionView.dataSource?.collectionView(
-                collectionView,
-                cellForItemAt: indexPath
-            )
-        )
-        collectionView.delegate?.collectionView?(
-            collectionView,
-            willDisplay: cell,
-            forItemAt: indexPath
-        )
+        _ = try harness.displayedCell(at: indexPath)
 
         XCTAssertNotNil(viewModel)
         viewModel = nil
-        controller.update(with: CollectionControllerData(items: []))
-
-        XCTAssertNotNil(weakViewModel)
-        collectionView.delegate?.collectionView?(
-            collectionView,
-            didEndDisplaying: cell,
-            forItemAt: indexPath
+        let removalCompletion = expectation(description: "item removal")
+        controller.update(
+            with: CollectionControllerData(items: []),
+            completion: removalCompletion.fulfill
         )
+        wait(for: [removalCompletion], timeout: 1)
+        harness.layout()
+
         XCTAssertNil(weakViewModel)
     }
 
@@ -266,14 +246,12 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         let indexPath = IndexPath(item: 0, section: 0)
         controller.attach(to: collectionView)
         controller.update(with: CollectionControllerData(items: [TestItem(id: 1)]))
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
+        _ = try harness.displayedCell(at: indexPath)
         let delegate = try XCTUnwrap(collectionView.delegate)
 
         XCTAssertFalse(
@@ -388,20 +366,19 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         controller.attach(to: collectionView)
         controller.update(with: CollectionControllerData(items: [Int(1), UInt8(1)]))
 
         let integerCell = try XCTUnwrap(
-            collectionView.dataSource?.collectionView(
-                collectionView,
-                cellForItemAt: IndexPath(item: 0, section: 0)
+            harness.displayedCell(
+                at: IndexPath(item: 0, section: 0)
             ) as? GenericCollectionViewCell<UILabel>
         )
         let byteCell = try XCTUnwrap(
-            collectionView.dataSource?.collectionView(
-                collectionView,
-                cellForItemAt: IndexPath(item: 1, section: 0)
+            harness.displayedCell(
+                at: IndexPath(item: 1, section: 0)
             ) as? GenericCollectionViewCell<UILabel>
         )
 
@@ -553,7 +530,8 @@ final class MVVMCollectionTests: XCTestCase {
             )
         )
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         let layout = try XCTUnwrap(collectionView.collectionViewLayout as? UICollectionViewFlowLayout)
         let indexPath = IndexPath(item: 0, section: 0)
         controller.attach(to: collectionView)
@@ -569,10 +547,7 @@ final class MVVMCollectionTests: XCTestCase {
                 sizeForItemAt: indexPath
             )
         )
-        _ = collectionView.dataSource?.collectionView(
-            collectionView,
-            cellForItemAt: indexPath
-        )
+        _ = try harness.displayedCell(at: indexPath)
 
         XCTAssertEqual(size, expectedSize)
         XCTAssertEqual(creationCount, 1)
@@ -637,14 +612,14 @@ final class MVVMCollectionTests: XCTestCase {
         let registry = CollectionComponentRegistry()
         registry.append(descriptor)
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         controller.attach(to: collectionView)
         controller.update(with: CollectionControllerData(items: [TestItem(id: 7)]))
 
         let cell = try XCTUnwrap(
-            collectionView.dataSource?.collectionView(
-                collectionView,
-                cellForItemAt: IndexPath(item: 0, section: 0)
+            harness.displayedCell(
+                at: IndexPath(item: 0, section: 0)
             ) as? GenericCollectionViewCell<UILabel>
         )
 
@@ -654,7 +629,8 @@ final class MVVMCollectionTests: XCTestCase {
     func testDescriptorAddedAfterAttachIsRegisteredOnUpdate() throws {
         let registry = CollectionComponentRegistry()
         let controller = CollectionController(registry: registry)
-        let collectionView = makeCollectionView()
+        let harness = CollectionViewHarness()
+        let collectionView = harness.collectionView
         controller.attach(to: collectionView)
 
         registry.append(
@@ -669,9 +645,8 @@ final class MVVMCollectionTests: XCTestCase {
         controller.update(with: CollectionControllerData(items: [TestItem(id: 9)]))
 
         let cell = try XCTUnwrap(
-            collectionView.dataSource?.collectionView(
-                collectionView,
-                cellForItemAt: IndexPath(item: 0, section: 0)
+            harness.displayedCell(
+                at: IndexPath(item: 0, section: 0)
             ) as? GenericCollectionViewCell<UILabel>
         )
         XCTAssertEqual(cell.view.text, "Late item 9")
@@ -694,6 +669,50 @@ final class MVVMCollectionTests: XCTestCase {
             frame: CGRect(x: 0, y: 0, width: 320, height: 480),
             collectionViewLayout: UICollectionViewFlowLayout()
         )
+    }
+}
+
+@MainActor
+private final class CollectionViewHarness {
+    let collectionView: UICollectionView
+
+    private let window: UIWindow
+    private let viewController: UIViewController
+
+    init() {
+        let frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        let layout = UICollectionViewFlowLayout()
+        layout.itemSize = CGSize(width: 50, height: 50)
+
+        collectionView = UICollectionView(
+            frame: frame,
+            collectionViewLayout: layout
+        )
+        window = UIWindow(frame: frame)
+        viewController = UIViewController()
+
+        viewController.view.frame = frame
+        collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        viewController.view.addSubview(collectionView)
+        window.rootViewController = viewController
+        window.isHidden = false
+        layoutViews()
+    }
+
+    func displayedCell(at indexPath: IndexPath) throws -> UICollectionViewCell {
+        layoutViews()
+        return try XCTUnwrap(collectionView.cellForItem(at: indexPath))
+    }
+
+    func layout() {
+        layoutViews()
+    }
+
+    private func layoutViews() {
+        viewController.view.setNeedsLayout()
+        viewController.view.layoutIfNeeded()
+        collectionView.setNeedsLayout()
+        collectionView.layoutIfNeeded()
     }
 }
 
