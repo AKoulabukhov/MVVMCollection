@@ -1,5 +1,7 @@
 # MVVMCollection
 
+[![Build & Test MVVMCollection](https://github.com/AKoulabukhov/MVVMCollection/actions/workflows/swift.yml/badge.svg)](https://github.com/AKoulabukhov/MVVMCollection/actions/workflows/swift.yml)
+
 `MVVMCollection` is a small UIKit package that connects heterogeneous
 `UICollectionView` items to views and view models while using a diffable data
 source internally.
